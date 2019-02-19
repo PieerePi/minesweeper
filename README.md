@@ -1,0 +1,148 @@
+# Minesweeper（扫雷）
+
+这是一个由Python编写的扫雷游戏，基于tkinter/Tkinter开发，支持python2和python3。
+
+## TODO
+
+增加左右键同时点击的操作。tkinter如何实现？
+
+## 功能
+
+### 概述
+
+* 基本功能：左键扫雷，右键标记
+* 记录游戏步数和时间
+* 游戏重置：同一地图可进行多次游戏
+* 自定义地图参数，默认提供初级、中级、高级三个级别
+
+### 算法概述
+
+游戏算法总体为一个有限状态机。一共有游戏中、成功、失败，其中后两种为最终状态。状态转化为点击某个方格。
+
+游戏的动作是点击某个方格，有三种情况
+
+* 点到已经被点过的，无任何改变，可以继续游戏
+* 点到地雷，游戏失败
+* 点到本身不是地雷
+    * 周围没有地雷，需要继续点开一大片地图（用个队列广度遍历搞定）
+    * 周围有地雷的，此时如果没有被点过的数目等于地雷数，游戏成功，否则继续游戏
+
+### 地图描述
+
+一个扫雷地图可以由三个属性组成：
+
+* width:地图宽度
+* height:地图高度
+* mine_list:地雷列表，列表，每一个元素都是类似(x,y)的元组，表示该处是一个地雷。
+
+比如下面一个地图
+
+```
+1000
+0000
+0101
+1001
+```
+表示为
+
+```
+
+Map(width=4, height=4, mine_list=((0,0),(2,1),(2,3),(3,0),(33)))
+```
+由这三个属性可以算出其他的属性。
+
+
+### 游戏（Game）
+
+游戏类Game被设计为一个状态机程序，以一个地图Map对象作为数据来源。一个游戏对象除了Map对象之外用相同的二维对象_swept_state_map表示地图相应的位置是否被扫过雷。
+
+```
+0010
+0000
+0010
+0000
+```
+
+在GUI界面中也是根据这个地图改变相应单元格的状态。
+
+## 开发
+
+### 界面
+
+这是由内置tkinter库编写的。
+
+1 单元格按钮的响应函数。
+
+（x,y）处左键点击函数
+
+```
+self.bt_map[x][y] = tk.Button(self.map_frame,text='',command = lambda x=x,y=y:self._on_click(x,y))
+```
+
+(x,y)处右键点击函数，采用闭包形式将x,y传入响应函数
+
+```
+def right_click_handler(event, self=self, x=x, y=y):
+    return self._on_right_click(event, x, y)
+self.bt_map[x][y].bind('<Button-3>', right_click_handler)
+```
+
+2 自动计数控件
+
+tkinter的每个控件都有after和after_cancel两个方法，分别设置定时函数和取消定时函数。
+
+基本方法如下：
+
+```
+def _timer(self):
+    if self._state:
+        self.increase()
+        self._timer_id = self.after(1000, self._timer)
+
+def start_timer(self):
+    if not self._state:
+        self._state = True
+        self._timer()
+
+def stop_timer(self):
+    self._state = False
+    if self._timer_id:
+        self.after_cancel(self._timer_id)
+        self._timer_id = None
+```
+
+## 测试
+
+命令
+
+```
+python minesweeper test.py test
+```
+
+## 运行
+
+python2或python3
+
+```
+python app_tk.pyw
+```
+
+## 打包
+
+使用[PyInstaller](https://pythonhosted.org/PyInstaller/)打包。
+安装PyInstaller
+
+```
+pip install PyInstaller
+```
+ windows下，在path\Scripts\目录下生成pyinstaller.exe文件，将此目录添加到环境变量
+  执行以下命令即可。生成的文件在当前目录\dist\下。
+```
+pyinstaller app_tk.pyw -F -w
+```
+其中
+
+- -F 单文件
+- -w 窗口程序
+
+
