@@ -2,6 +2,10 @@
 
 这是一个由Python编写的扫雷游戏，基于tkinter/Tkinter开发，支持python2和python3。
 
+## 更新 2020-08-29
+
+增加左右键同时点击的操作。
+
 ## TODO
 
 增加左右键同时点击的操作。tkinter如何实现？

@@ -160,7 +160,7 @@ class Game(object):
                 self._state = Game.STATE_PLAY
             return self._state
         else:
-            scan_step = [(-1, 0), (0, 1), (1, 0), (0, -1)]
+            scan_step = [(-1, 0), (0, 1), (1, 0), (0, -1), (-1, 1), (-1, -1), (1, 1), (1, -1)]
             assert near_mine_number == 0
             q = queue.Queue()
             q.put(click_pos)
@@ -190,7 +190,8 @@ class Game(object):
 
     def play(self, click_pos):
         state = self._sweep(click_pos)
-        if state == Game.STATE_SUCCESS or state == Game.STATE_FAIL:
+        # if state == Game.STATE_SUCCESS or state == Game.STATE_FAIL:
+        if state == Game.STATE_FAIL:
             self._sweep_all_map()
         return state
 

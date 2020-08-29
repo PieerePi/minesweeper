@@ -98,19 +98,51 @@ class GameFrame(tk.Frame):
         self._create_controller_frame()
         self.map_frame = tk.Frame(self, relief=tk.GROOVE, borderwidth=2)
         self.map_frame.pack(side=tk.TOP, expand=tk.YES, padx=10, pady=10)
+        self.ignore_next_button_click = 0
+        self.is_left_button_clicked = 0
         self.game = Game(mine_map)
         height, width = mine_map.height, mine_map.width
         self.bt_map = [[None for _ in range(0, width)] for _ in range(0, height)]
         for x in range(0, height):
             for y in range(0, width):
                 self.bt_map[x][y] = tk.Button(self.map_frame, text='', width=3, height=1,
-                                              command=lambda px=x, py=y: self.sweep_mine(px, py))
+                                              command=lambda px=x, py=y: self.left_button_click(px, py))
                 self.bt_map[x][y].config(static.style('grid.unknown'))
 
                 def _mark_mine(event, self=self, x=x, y=y):
                     return self.mark_grid_as_mine(event, x, y)
 
-                self.bt_map[x][y].bind('<Button-3>', _mark_mine)
+                def _button_released(event, self=self, x=x, y=y):
+                    # print(event, x, y)
+                    # 对于左右键同时按下，还要过滤掉下一个冗余的事件
+                    if self.ignore_next_button_click == 1 and (event.state == 256 or event.state == 1024):
+                        # print("ignore", event)
+                        self.ignore_next_button_click = 0
+                        return
+                    # <ButtonRelease-1>
+                    if event.state == 256:
+                        # 由于tkinter的问题，在这个回调中，无法让当前按钮的状态置为relief=tk.SUNKEN
+                        # 所以还是在上面让按钮绑定了事件，在left_button_click中去做实际的动作
+                        # 因为按钮绑定的事件处理，已经有格子内部外部动作有效无效的处理，所以这儿一直设置为1
+                        self.is_left_button_clicked = 1
+                    # 释放的时候，没有移出格子，表示动作有效
+                    elif event.x >= 0 and event.x <= 36 and event.y >= 0 and event.y <= 34:
+                        # <ButtonRelease-3>
+                        if event.state == 1024:
+                            self.mark_grid_as_mine(event, x, y)
+                        # <ButtonRelease-1> + <ButtonRelease-3>
+                        elif event.state == 1280:
+                            self.double_button_click(x, y)
+                            # 对于左右键同时按下，还要过滤掉下一个冗余的事件
+                            self.ignore_next_button_click = 1
+                    # 释放的时候，移出了格子，表示动作无效
+                    else:
+                        if event.state == 1280:
+                            # 对于左右键同时按下，还要过滤掉下一个冗余的事件
+                            self.ignore_next_button_click = 1
+
+                self.bt_map[x][y].bind('<ButtonRelease-1>', _button_released)
+                self.bt_map[x][y].bind('<ButtonRelease-3>', _button_released)
                 self.bt_map[x][y].grid(row=x, column=y)
         self._create_info_frame()
 
@@ -149,19 +181,70 @@ class GameFrame(tk.Frame):
     def start(self):
         mine_map = GameHelpers.create_from_mine_number(self.game.height, self.game.width, self.game.mine_number)
         self.game = Game(mine_map)
+        for x in range(0, self.game.height):
+            for y in range(0, self.game.width):
+                self.bt_map[x][y]['text'] = ''
         self._draw_map()
         self.step_count_label.set_counter_value()
         self.flag_count_label.set_counter_value()
         self.timer_count_label.reset()
+        if not self.timer_count_label.state:
+            self.timer_count_label.start_timer()
         self.msg_label.splash('新游戏已就绪')
 
     def reset(self):
         self.game.reset()
+        for x in range(0, self.game.height):
+            for y in range(0, self.game.width):
+                self.bt_map[x][y]['text'] = ''
         self._draw_map()
         self.step_count_label.set_counter_value()
         self.flag_count_label.set_counter_value()
         self.timer_count_label.reset()
+        if not self.timer_count_label.state:
+            self.timer_count_label.start_timer()
         self.msg_label.splash('游戏已经重置')
+
+    def double_button_click(self, x, y):
+        # 当前按钮没有解开，不能同时左右键按下
+        if not self.game.swept_state_map[x][y]:
+            return
+
+        # 检查当前按钮数字和周围?的数目是否一致
+        curnum = self.game.mine_map.distribute_map[x][y]
+        nearquestmark = 0
+        scan_step = [(-1, 0), (0, 1), (1, 0), (0, -1), (-1, 1), (-1, -1), (1, 1), (1, -1)]
+        for o_x, o_y in scan_step:
+            d_x, d_y = x + o_x, y + o_y
+            if self.game.mine_map.is_in_map((d_x, d_y)) and not self.game.swept_state_map[d_x][d_y] and self.bt_map[d_x][d_y]['text'] == '?':
+                nearquestmark += 1
+        if nearquestmark == 0 or curnum != nearquestmark:
+            return
+
+        # 逐一解开周围还没有解开并且不为?的按钮
+        state = None
+        for o_x, o_y in scan_step:
+            d_x, d_y = x + o_x, y + o_y
+            if self.game.mine_map.is_in_map((d_x, d_y)) and not self.game.swept_state_map[d_x][d_y] and self.bt_map[d_x][d_y]['text'] != '?':
+                state = self.game.play((d_x, d_y))
+                if state != Game.STATE_PLAY:
+                    break
+
+        self.step_count_label.set_counter_value(str(self.game.cur_step))
+        self._draw_map()
+        if state == Game.STATE_SUCCESS:
+            self.timer_count_label.stop_timer()
+            self.msg_label.splash('恭喜你，游戏通关了')
+            messagebox.showinfo('提示', '恭喜你通关了！', parent=self)
+        elif state == Game.STATE_FAIL:
+            self.timer_count_label.stop_timer()
+            self.msg_label.splash('很遗憾，游戏失败')
+            messagebox.showerror('提示', '很遗憾，游戏失败！', parent=self)
+
+    def left_button_click(self, x, y):
+        if self.is_left_button_clicked == 1:
+            self.is_left_button_clicked = 0
+            self.sweep_mine(x, y)
 
     def sweep_mine(self, x, y):
         if self.game.swept_state_map[x][y]:

@@ -54,4 +54,4 @@ class LevelConfig(object):
 level_config = LevelConfig()
 level_config.add_level_map(name='primary', verbose='初级', height=9, width=9, mine_number=10)
 level_config.add_level_map(name='secondary', verbose='中级', height=20, width=30, mine_number=100)
-level_config.add_level_map(name='tertiary', verbose='高级', height=25, width=40, mine_number=400)
+level_config.add_level_map(name='tertiary', verbose='高级', height=24, width=36, mine_number=180)
